@@ -42,17 +42,62 @@ grafana:
 opensearch:
     enabled: false
 
+# The demo's collector sends all application telemetry straight to Dash0.
 opentelemetry-collector:
+    # Auth token for Dash0, read from a Secret that is NOT in git (a copy of the
+    # one the Dash0 operator uses). Create it once, out-of-band:
+    #   kubectl -n otel-demo create secret generic dash0-authorization-secret \
+    #     --from-literal=token='<DASH0_AUTH_TOKEN>'
+    extraEnvs:
+        - name: DASH0_AUTH_TOKEN
+          valueFrom:
+              secretKeyRef:
+                  name: dash0-authorization-secret
+                  key: token
+
+    # The Dash0 operator (k8s/apps/dash0-operator.yaml) already collects host,
+    # kubelet and cluster metrics for this namespace; don't send them twice.
+    presets:
+        hostMetrics:
+            enabled: false
+        kubeletMetrics:
+            enabled: false
+        clusterMetrics:
+            enabled: false
+
     config:
+        exporters:
+            otlp_grpc/dash0:
+                endpoint: ingress.europe-west4.gcp.dash0.com:4317
+                headers:
+                    Authorization: Bearer ${env:DASH0_AUTH_TOKEN}
+                    Dash0-Dataset: oteldemo-autofix
+                sending_queue:
+                    batch: {}
+
+        processors:
+            resource:
+                attributes:
+                    # Upstream's entry, restated because Helm replaces lists.
+                    - key: service.instance.id
+                      from_attribute: k8s.pod.uid
+                      action: insert
+                    # Matches the operator's clusterName, so app telemetry and
+                    # Kubernetes telemetry line up in Dash0.
+                    - key: k8s.cluster.name
+                      value: oteldemo-autofix
+                      action: upsert
+
         service:
             pipelines:
                 # Upstream exports to the (disabled) jaeger/prometheus/opensearch
-                # backends; send only to the debug exporter until Dash0 is wired up.
+                # backends and the debug exporter; send to Dash0 instead.
                 traces:
-                    exporters: [debug, span_metrics]
+                    exporters: [otlp_grpc/dash0, span_metrics]
                 metrics:
-                    exporters: [debug]
+                    exporters: [otlp_grpc/dash0]
                 logs:
-                    exporters: [debug]
+                    exporters: [otlp_grpc/dash0]
+                # Nothing produces profiles here (the eBPF profiler is off).
                 profiles:
                     exporters: [debug]

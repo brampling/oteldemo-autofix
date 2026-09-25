@@ -1,0 +1,66 @@
+# Argo CD Application: Dash0 Kubernetes operator (Helm chart).
+#
+# Role in this demo: Kubernetes infrastructure telemetry. The demo's own
+# collector sends the application telemetry (traces, metrics, logs) straight to
+# Dash0 (see k8s/otel-demo/values.yaml). The operator adds node, pod and
+# container metrics plus Kubernetes events, so errors can be lined up with pod
+# restarts and rollouts.
+#
+# The auth token is NOT in git. Create it once, out-of-band:
+#   kubectl -n dash0-system create secret generic dash0-authorization-secret \
+#     --from-literal=token='<DASH0_AUTH_TOKEN>'
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+    name: dash0-operator
+    namespace: argocd
+spec:
+    project: default
+    source:
+        repoURL: https://dash0hq.github.io/dash0-operator
+        chart: dash0-operator
+        targetRevision: 0.155.1
+        helm:
+            valuesObject:
+                operator:
+                    dash0Export:
+                        enabled: true
+                        # OTLP/gRPC ingress (region europe-west4).
+                        endpoint: ingress.europe-west4.gcp.dash0.com:4317
+                        dataset: oteldemo-autofix
+                        secretRef:
+                            name: dash0-authorization-secret
+                            key: token
+                    # Added as k8s.cluster.name to everything the operator sends.
+                    clusterName: oteldemo-autofix
+
+                    # Monitor only the otel-demo namespace. The operator creates
+                    # the Dash0Monitoring resource itself whenever the namespace
+                    # exists, so there is no CRD-ordering race on a fresh bootstrap.
+                    autoMonitorNamespaces:
+                        enabled: true
+                        labelSelector: kubernetes.io/metadata.name=otel-demo
+                    monitoringTemplate:
+                        spec:
+                            # The demo services ship their own OpenTelemetry SDKs.
+                            instrumentWorkloads:
+                                mode: none
+                            # They also send logs over OTLP; scraping stdout on top
+                            # of that would duplicate them.
+                            logCollection:
+                                enabled: false
+                            eventCollection:
+                                enabled: true
+                            # The demo collector already scrapes what it needs.
+                            prometheusScraping:
+                                enabled: false
+    destination:
+        server: https://kubernetes.default.svc
+        namespace: dash0-system
+    syncPolicy:
+        automated:
+            prune: true
+            selfHeal: true
+        syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true # operator CRDs are large
