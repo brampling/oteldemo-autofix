@@ -1,0 +1,77 @@
+# IDEs / local files
+*~
+.idea/
+*.iml
+*.ipr
+*.iws
+*.pyc
+.swp
+.DS_Store
+\#*\#
+.classpath
+.project
+.settings
+.vs/
+.vscode
+
+# AI Agents
+.claude/
+.codex/
+.cursor/
+.cursorrules
+
+# Build artifacts
+bin/
+obj/
+.gradle/
+.nb-gradle
+.nb-gradle-properties
+build/
+node_modules/
+coverage
+.next/
+out/
+build
+next-env.d.ts
+vendor/
+composer.lock
+.venv
+.dockerhub.env
+.ghcr.env
+*.apk
+/.lycheecache
+
+# Ignore copied/generated protobuf files
+/src/accounting/src/protos/
+/src/cart/src/protos/
+/src/fraud-detection/src/main/proto
+/src/payment/demo.proto
+/src/shipping/proto/
+/src/currency/proto
+/src/frontend/pb
+
+# Otel Demo specific
+docker-compose.override.yml
+
+src/frontend/cypress/videos
+src/frontend/cypress/screenshots
+src/shipping/target/
+
+!src/currency/build
+
+# ---------------------------------------------------------------------------
+# oteldemo-autofix additions (everything above is the upstream demo's list)
+# ---------------------------------------------------------------------------
+
+# This repo is PUBLIC. Credentials (Dash0 auth tokens, PATs) live only in
+# Kubernetes Secrets created out-of-band - never in files here.
+.env.local
+*.local
+*.kubeconfig
+kubeconfig
+secrets/
+
+# Local Claude Code context - kept out of this public repo (it holds
+# operational notes and demo ground truth that must not be published).
+/CLAUDE.md
+CLAUDE.local.md

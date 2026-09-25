@@ -1,0 +1,137 @@
+# CI/CD for the product-catalog service (src/product-catalog).
+#
+#   pull_request  -> gofmt + vet + build + test (fix PRs get a check before merge)
+#   push to main  -> test -> build linux/arm64 image -> push to GHCR
+#                 -> commit the new sha-<commit> tag into k8s/otel-demo/values.yaml
+#
+# Argo CD in the cluster polls this repo and rolls out the new tag, so a merged
+# PR reaches the cluster with no manual step. Uses only the automatic
+# GITHUB_TOKEN; the tag-bump commit it pushes does not trigger further runs.
+name: product-catalog
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - src/product-catalog/**
+            - .github/workflows/build-product-catalog.yml
+    pull_request:
+        paths:
+            - src/product-catalog/**
+            - .github/workflows/build-product-catalog.yml
+    workflow_dispatch:
+
+# One run per ref at a time; a newer push to main supersedes a queued one, so
+# the last merge always wins the tag bump.
+concurrency:
+    group: product-catalog-${{ github.ref }}
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    IMAGE: ghcr.io/brampling/oteldemo-autofix-product-catalog
+
+jobs:
+    test:
+        runs-on: ubuntu-24.04-arm
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: src/product-catalog/go.mod
+                  cache-dependency-path: src/product-catalog/go.sum
+
+            - name: gofmt, vet, build, test
+              working-directory: src/product-catalog
+              run: |
+                  unformatted="$(gofmt -l .)"
+                  if [ -n "$unformatted" ]; then
+                      echo "::error::gofmt needed on: $unformatted"
+                      exit 1
+                  fi
+                  go vet ./...
+                  go build -o /dev/null ./...
+                  go test ./...
+
+    build:
+        needs: test
+        if: github.event_name != 'pull_request'
+        # Native arm64 runner (the cluster is arm64): no QEMU emulation.
+        runs-on: ubuntu-24.04-arm
+        permissions:
+            contents: read
+            packages: write
+        outputs:
+            tag: ${{ steps.tag.outputs.tag }}
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Image tag
+              id: tag
+              run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+            - uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GHCR
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Image metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ${{ env.IMAGE }}
+                  tags: |
+                      type=raw,value=${{ steps.tag.outputs.tag }}
+                      type=raw,value=latest,enable={{is_default_branch}}
+
+            - name: Build and push
+              uses: docker/build-push-action@v6
+              with:
+                  # The upstream Dockerfile expects the repo root as context.
+                  context: .
+                  file: src/product-catalog/Dockerfile
+                  platforms: linux/arm64
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha,scope=product-catalog
+                  cache-to: type=gha,mode=max,scope=product-catalog
+
+    deploy:
+        needs: build
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: main
+
+            - name: Pin the new image tag for Argo CD
+              env:
+                  TAG: ${{ needs.build.outputs.tag }}
+                  VALUES: k8s/otel-demo/values.yaml
+              run: |
+                  # Rewrite the value on the line carrying the ci marker comment.
+                  sed -i -E "s|^( *tag: )[^ ]+( # ci:product-catalog-tag)$|\1${TAG}\2|" "$VALUES"
+                  grep -q "tag: ${TAG} # ci:product-catalog-tag" "$VALUES" \
+                      || { echo "::error::ci:product-catalog-tag marker not found in $VALUES"; exit 1; }
+                  if git diff --quiet; then
+                      echo "Already pinned to ${TAG}"
+                      exit 0
+                  fi
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git commit -am "deploy(product-catalog): ${TAG}"
+                  for attempt in 1 2 3; do
+                      git pull --rebase origin main && git push origin HEAD:main && exit 0
+                      sleep 5
+                  done
+                  exit 1

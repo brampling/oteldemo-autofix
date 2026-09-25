@@ -1,0 +1,24 @@
+# Known gitleaks findings in the vendored upstream OpenTelemetry demo source.
+# None are credentials of this project: all are already public in
+# github.com/open-telemetry/opentelemetry-demo (tag 3.1.0). Listed by exact
+# fingerprint (file:rule:line) so any NEW finding still fails the scan.
+
+# False positive: container image reference (VALKEY_IMAGE=...)
+.env:generic-api-key:21
+
+# Phoenix secret_key_base for flagd-ui: public demo/dev/test values
+compose.yaml:generic-api-key:744
+src/flagd-ui/config/test.exs:generic-api-key:11
+src/flagd-ui/config/dev.exs:generic-api-key:20
+
+# Commented-out sample secret_key from Grafana's stock grafana.ini
+src/grafana/grafana.ini:generic-api-key:253
+
+# Recorded VCR fixtures for the agent service: PostHog *public* ingestion key
+# captured in replayed analytics calls
+src/agent/fixtures/vcr_cassettes/azure_gpt-5.5_cassette.yaml:generic-api-key:90
+src/agent/fixtures/vcr_cassettes/azure_gpt-5.5_cassette.yaml:generic-api-key:126
+src/agent/fixtures/vcr_cassettes/azure_gpt-5.5_cassette.yaml:generic-api-key:162
+src/agent/fixtures/vcr_cassettes/claude-opus-4-7_cassette.yaml:generic-api-key:90
+src/agent/fixtures/vcr_cassettes/claude-opus-4-7_cassette.yaml:generic-api-key:126
+src/agent/fixtures/vcr_cassettes/claude-opus-4-7_cassette.yaml:generic-api-key:162

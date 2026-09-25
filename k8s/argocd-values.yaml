@@ -1,0 +1,29 @@
+# Argo CD Helm values: a lean install for the single-node k3d demo cluster.
+#
+# Install (once):
+#   helm repo add argo https://argoproj.github.io/argo-helm
+#   helm repo update argo
+#   helm upgrade --install argocd argo/argo-cd --version 10.9.2 \
+#     -n argocd --create-namespace -f k8s/argocd-values.yaml
+#
+# UI:       kubectl -n argocd port-forward svc/argocd-server 8081:80
+#           -> http://localhost:8081   (user: admin)
+# Password: kubectl -n argocd get secret argocd-initial-admin-secret \
+#             -o jsonpath='{.data.password}' | base64 -d; echo
+
+configs:
+    cm:
+        # Poll git every ~30-40s instead of the 120s + 60s-jitter default. A
+        # laptop cluster can't receive GitHub webhooks, so polling is what turns
+        # a merged PR (and CI's tag bump) into a rollout quickly.
+        timeout.reconciliation: 30s
+        timeout.reconciliation.jitter: 10s
+    params:
+        # Plain HTTP: the UI is only reached through kubectl port-forward.
+        server.insecure: true
+
+# Not needed here: no SSO, no notifications.
+dex:
+    enabled: false
+notifications:
+    enabled: false

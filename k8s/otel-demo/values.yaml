@@ -1,0 +1,58 @@
+# Overrides for the upstream opentelemetry-demo Helm chart (chart version pinned
+# in k8s/apps/otel-demo.yaml). Only differences from the chart defaults live
+# here; see the chart's values.yaml for everything else.
+
+components:
+    # Built from src/product-catalog by .github/workflows/build-product-catalog.yml.
+    # CI rewrites the tag on the marked line after every build on main; don't
+    # edit that line by hand (and keep the marker comment intact).
+    product-catalog:
+        imageOverride:
+            repository: ghcr.io/brampling/oteldemo-autofix-product-catalog
+            tag: sha-0000000 # ci:product-catalog-tag
+
+    # --- Trimmed to fit a single ~8 GiB node -------------------------------
+    # The chart sets only memory limits, so requests default to the limits and
+    # the full demo (~6.9 GiB) would not schedule. None of these are on the
+    # request path of the shop or the load generator.
+    chatbot:
+        enabled: false
+    mcp:
+        enabled: false
+    telemetry-docs:
+        enabled: false
+
+    # Plain-HTTP Locust users only: the headless-Chromium browser users are
+    # what need the chart's 1500Mi limit.
+    load-generator:
+        envOverrides:
+            - name: LOCUST_BROWSER_TRAFFIC_ENABLED
+              value: "false"
+        resources:
+            limits:
+                memory: 400Mi
+
+# Bundled observability backends: disabled. Telemetry goes to Dash0 instead.
+jaeger:
+    enabled: false
+prometheus:
+    enabled: false
+grafana:
+    enabled: false
+opensearch:
+    enabled: false
+
+opentelemetry-collector:
+    config:
+        service:
+            pipelines:
+                # Upstream exports to the (disabled) jaeger/prometheus/opensearch
+                # backends; send only to the debug exporter until Dash0 is wired up.
+                traces:
+                    exporters: [debug, span_metrics]
+                metrics:
+                    exporters: [debug]
+                logs:
+                    exporters: [debug]
+                profiles:
+                    exporters: [debug]

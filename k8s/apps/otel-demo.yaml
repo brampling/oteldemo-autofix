@@ -1,0 +1,36 @@
+# Argo CD Application: the OpenTelemetry demo (Astronomy Shop).
+#
+# Two sources:
+#   1. the upstream opentelemetry-demo Helm chart, pinned below;
+#   2. this repo, referenced as $values, supplying k8s/otel-demo/values.yaml.
+#
+# Services built from this repo's source (currently product-catalog) are
+# swapped in via imageOverride in that values file; CI rewrites their tags
+# after each build, and Argo CD rolls the change out on its next poll.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+    name: otel-demo
+    namespace: argocd
+spec:
+    project: default
+    sources:
+        - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+          chart: opentelemetry-demo
+          targetRevision: 0.42.1 # demo app version 3.1.0, matches src/
+          helm:
+              releaseName: otel-demo
+              valueFiles:
+                  - $values/k8s/otel-demo/values.yaml
+        - repoURL: https://github.com/brampling/oteldemo-autofix.git
+          targetRevision: main
+          ref: values
+    destination:
+        server: https://kubernetes.default.svc
+        namespace: otel-demo
+    syncPolicy:
+        automated:
+            prune: true
+            selfHeal: true
+        syncOptions:
+            - CreateNamespace=true

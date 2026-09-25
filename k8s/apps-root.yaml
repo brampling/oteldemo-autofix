@@ -1,0 +1,26 @@
+# App-of-apps root. Applied once; it watches k8s/apps/ and manages every Argo CD
+# Application defined there, so new apps register by commit alone.
+#
+# prune is intentionally FALSE here: deleting an Application file will NOT
+# auto-remove the running app. The apps themselves prune their own resources.
+#
+# Apply once (after Argo CD is installed, see k8s/argocd-values.yaml):
+#   kubectl apply -f k8s/apps-root.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+    name: root
+    namespace: argocd
+spec:
+    project: default
+    source:
+        repoURL: https://github.com/brampling/oteldemo-autofix.git
+        targetRevision: main
+        path: k8s/apps
+    destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+    syncPolicy:
+        automated:
+            prune: false
+            selfHeal: true
