@@ -9,7 +9,7 @@ components:
     product-catalog:
         imageOverride:
             repository: ghcr.io/brampling/oteldemo-autofix-product-catalog
-            tag: sha-9f0097a # ci:product-catalog-tag
+            tag: sha-441be04 # ci:product-catalog-tag
 
     # --- Trimmed to fit a single ~8 GiB node -------------------------------
     # The chart sets only memory limits, so requests default to the limits and
