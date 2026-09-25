@@ -89,9 +89,9 @@ kubectl apply -f k8s/apps-root.yaml
 kubectl -n argocd get applications
 ```
 
-The GHCR package `oteldemo-autofix-product-catalog` must be **public**, so the
-cluster can pull it without credentials. This is a one-time setting under the
-package's settings on GitHub.
+No image pull secret is needed. The GHCR package
+`oteldemo-autofix-product-catalog` is linked to this public repo and inherits
+its public visibility, so the cluster pulls it anonymously.
 
 ## Access
 
