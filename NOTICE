@@ -1,0 +1,21 @@
+oteldemo-autofix
+Copyright (c) 2026 Blair Rampling
+
+This repository contains material under two licenses.
+
+1. Original work in this repository is licensed under the MIT License
+   (see LICENSE). This covers the Kubernetes and Argo CD configuration in
+   k8s/, the CI workflows in .github/, scripts, and the project documentation
+   (README.md, NOTICE).
+
+2. The OpenTelemetry Demo source code, copied from
+   https://github.com/open-telemetry/opentelemetry-demo at tag 3.1.0, is
+   Copyright The OpenTelemetry Authors and licensed under the Apache License,
+   Version 2.0 (see LICENSE-APACHE). This covers src/, pb/, internal/, test/,
+   telemetry-schema/, the compose*.yaml files, the Makefile, and the other
+   files taken from that repository. Most of them carry an
+   "SPDX-License-Identifier: Apache-2.0" header.
+
+   Files from the OpenTelemetry Demo may have been modified in this
+   repository. The git history records every change made to them since the
+   initial import.

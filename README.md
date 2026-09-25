@@ -143,11 +143,18 @@ fails the scan.
 ## Relationship to upstream
 
 The source is a snapshot of
-[open-telemetry/opentelemetry-demo@3.1.0](https://github.com/open-telemetry/opentelemetry-demo/tree/3.1.0),
-licensed under Apache-2.0 (see [LICENSE](LICENSE)). These upstream files were
-left out:
+[open-telemetry/opentelemetry-demo@3.1.0](https://github.com/open-telemetry/opentelemetry-demo/tree/3.1.0).
+These upstream files were left out:
 
 - `.github/`: upstream's own CI, which would otherwise run here.
 - `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`: contribution policy for the
   upstream project.
 - `CHANGELOG.md`, `.chloggen/`, `README.md`: see upstream.
+
+## License
+
+The original work here (`k8s/`, `.github/`, scripts and docs) is
+[MIT](LICENSE). The OpenTelemetry Demo source it builds on is Copyright The
+OpenTelemetry Authors and stays under [Apache-2.0](LICENSE-APACHE); those files
+keep their `SPDX-License-Identifier: Apache-2.0` headers. See [NOTICE](NOTICE)
+for exactly which parts are under which license.
