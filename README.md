@@ -19,10 +19,12 @@ flowchart LR
     end
     subgraph cluster[k3d cluster]
         argo[Argo CD] -->|polls every ~30s| repo
-        argo -->|syncs| demo[OTel demo]
+        argo -->|syncs| demo[OTel demo + its collector]
+        argo -->|syncs| op[Dash0 operator]
         demo -->|pulls image| ghcr
     end
-    demo -->|OTLP| dash0[Dash0]
+    demo -->|app traces, metrics, logs| dash0[Dash0]
+    op -->|k8s metrics + events| dash0
     dash0 -->|Agent0 diagnoses, opens fix PR| repo
 ```
 
@@ -35,8 +37,8 @@ from GHCR. Every other service runs the upstream image
 | Stage | State |
 |---|---|
 | Demo running in the cluster, with CI/CD from GitHub | done |
-| Telemetry to Dash0 | next |
-| Diagnose the product-catalog failure | planned |
+| Telemetry to Dash0 | done |
+| Diagnose the product-catalog failure | next |
 | Agent0 diagnoses and opens a fix PR | planned |
 | Merge the fix, error clears in Dash0 | planned |
 | Script to re-break the service for the next run | planned |
@@ -61,6 +63,28 @@ From merge to new pod takes about 3-4 minutes, mostly the image build. The
 workflow uses only the built-in `GITHUB_TOKEN`, and its tag-bump commit does
 not trigger another run.
 
+## Telemetry
+
+Everything goes to the Dash0 dataset **`oteldemo-autofix`** (region
+europe-west4), along two paths:
+
+- **The demo's own collector** (`otel-collector-agent`) sends the application
+  traces, metrics and logs over OTLP/gRPC. Configured in
+  `k8s/otel-demo/values.yaml`.
+- **The Dash0 operator** (`k8s/apps/dash0-operator.yaml`) sends node, pod and
+  container metrics and Kubernetes events for the `otel-demo` namespace, so
+  errors can be lined up with restarts and rollouts.
+
+Each path is kept from duplicating the other:
+
+- The operator doesn't auto-instrument (the services ship their own
+  OpenTelemetry SDKs), doesn't scrape pod logs (the services send logs over
+  OTLP) and doesn't scrape Prometheus endpoints.
+- The demo collector's host, kubelet and cluster metric presets are off,
+  because the operator collects those.
+
+Both paths set `k8s.cluster.name=oteldemo-autofix`.
+
 ## Repository layout
 
 | Path | Contents |
@@ -69,7 +93,8 @@ not trigger another run.
 | `k8s/argocd-values.yaml` | Argo CD Helm values (lean install, 30s git polling) |
 | `k8s/apps-root.yaml` | App-of-apps root: applied once, manages `k8s/apps/` |
 | `k8s/apps/otel-demo.yaml` | Argo CD Application: upstream demo Helm chart + our values |
-| `k8s/otel-demo/values.yaml` | Chart overrides. CI pins the product-catalog image tag here |
+| `k8s/apps/dash0-operator.yaml` | Argo CD Application: Dash0 operator (Kubernetes telemetry) |
+| `k8s/otel-demo/values.yaml` | Chart overrides, including the collector's Dash0 export. CI pins the product-catalog image tag here |
 | `.github/workflows/` | product-catalog CI/CD, gitleaks secret scan |
 
 ## Bootstrap
@@ -84,10 +109,22 @@ helm repo update argo
 helm upgrade --install argocd argo/argo-cd --version 10.9.2 \
     -n argocd --create-namespace -f k8s/argocd-values.yaml
 
-# 2. Apply the app-of-apps root. Argo CD then deploys everything in k8s/apps/.
+# 2. Dash0 auth token, as a Secret in both namespaces that use it (never in git).
+#    The token needs ingest access to the oteldemo-autofix dataset.
+for ns in dash0-system otel-demo; do
+    kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+    kubectl -n "$ns" create secret generic dash0-authorization-secret \
+        --from-literal=token='<DASH0_AUTH_TOKEN>'
+done
+
+# 3. Apply the app-of-apps root. Argo CD then deploys everything in k8s/apps/.
 kubectl apply -f k8s/apps-root.yaml
 kubectl -n argocd get applications
 ```
+
+On first start the operator's collectors restart once: resource detection
+takes about 25 seconds per pass on k3d, which outlasts the first liveness
+probe. After that they stay up.
 
 No image pull secret is needed. The GHCR package
 `oteldemo-autofix-product-catalog` is linked to this public repo and inherits
@@ -129,12 +166,33 @@ to about 4.7 GiB:
   load generator sends it requests.
 - The load generator runs plain-HTTP users only (no headless Chromium), with a
   400Mi limit instead of 1500Mi.
+- flagd gets more memory: a 150Mi limit and `GOMEMLIMIT=120MiB`, up from 75Mi
+  and 60MiB. Its working set levels off at about 50Mi, too close to the old
+  soft limit: Go's garbage collector ran almost nonstop and took over every CPU
+  on the node.
+
+With the Dash0 operator added, the node has about 6 GiB of its 7.7 GiB
+requested.
+
+Collector changes, beyond exporting to Dash0 (see [Telemetry](#telemetry)):
+
+- The Kubernetes pod-association rules put `container.id` last. The chart
+  otherwise puts it first, and the .NET (`cart`, `accounting`) and PHP (`quote`)
+  SDKs report a `container.id` that matches no app container. With it first,
+  those services reached Dash0 with no Kubernetes metadata.
 
 ## Secrets
 
-This repo is public and holds no credentials. Anything sensitive, such as the
-Dash0 auth token, is created as a Kubernetes Secret out-of-band and only
-referenced by name here. gitleaks runs on every push and PR, and as an
+This repo is public and holds no credentials. Anything sensitive is created as
+a Kubernetes Secret out-of-band and only referenced by name here:
+
+| Secret | Namespace | Used by |
+|---|---|---|
+| `dash0-authorization-secret` (key `token`) | `dash0-system` | Dash0 operator |
+| `dash0-authorization-secret` (key `token`) | `otel-demo` | demo collector (`DASH0_AUTH_TOKEN`) |
+
+Both hold the same Dash0 token, so rotating it means updating both (see
+[Bootstrap](#bootstrap)). gitleaks runs on every push and PR, and as an
 optional pre-commit hook (`.pre-commit-config.yaml`).
 `.gitleaksignore` lists the known findings in the vendored upstream source, all
 of them public demo values, by exact fingerprint, so any new finding still
