@@ -168,8 +168,8 @@ to about 4.7 GiB:
   400Mi limit instead of 1500Mi.
 - flagd gets more memory: a 150Mi limit and `GOMEMLIMIT=120MiB`, up from 75Mi
   and 60MiB. Its working set levels off at about 50Mi, too close to the old
-  soft limit: Go's garbage collector ran almost nonstop and took over every CPU
-  on the node.
+  soft limit: Go's garbage collector ran almost nonstop and used 8 of the
+  node's 10 cores.
 
 With the Dash0 operator added, the node has about 6 GiB of its 7.7 GiB
 requested.

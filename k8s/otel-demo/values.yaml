@@ -24,7 +24,7 @@ components:
 
     # The chart runs flagd with GOMEMLIMIT=60MiB under a 75Mi limit, but its
     # working set here is ~50-60MiB. Near the soft limit the Go GC runs almost
-    # nonstop: observed flagd climbing to 8 CPU cores (the whole node) with
+    # nonstop: observed flagd climbing to 8 of the node's 10 CPU cores, with
     # flag evaluations stalling. Give it headroom.
     flagd:
         envOverrides:
