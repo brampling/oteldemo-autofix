@@ -76,6 +76,27 @@ opentelemetry-collector:
                     batch: {}
 
         processors:
+            # Pod association order. Because a profiles pipeline exists, the
+            # collector chart PREPENDS a container.id rule unless one is already
+            # listed, and k8s_attributes uses the first rule whose attributes are
+            # present. The .NET (cart, accounting) and PHP (quote) SDKs report a
+            # container.id that matches no app container (for cart and accounting
+            # it is the pod sandbox ID), so those services got no Kubernetes
+            # metadata. Listing container.id LAST stops the prepend; the
+            # connection rule always matches OTLP traffic first.
+            k8s_attributes:
+                pod_association:
+                    - sources:
+                          - from: resource_attribute
+                            name: k8s.pod.ip
+                    - sources:
+                          - from: resource_attribute
+                            name: k8s.pod.uid
+                    - sources:
+                          - from: connection
+                    - sources:
+                          - from: resource_attribute
+                            name: container.id
             resource:
                 attributes:
                     # Upstream's entry, restated because Helm replaces lists.
