@@ -22,6 +22,18 @@ components:
     telemetry-docs:
         enabled: false
 
+    # The chart runs flagd with GOMEMLIMIT=60MiB under a 75Mi limit, but its
+    # working set here is ~50-60MiB. Near the soft limit the Go GC runs almost
+    # nonstop: observed flagd climbing to 8 CPU cores (the whole node) with
+    # flag evaluations stalling. Give it headroom.
+    flagd:
+        envOverrides:
+            - name: GOMEMLIMIT
+              value: 120MiB
+        resources:
+            limits:
+                memory: 150Mi
+
     # Plain-HTTP Locust users only: the headless-Chromium browser users are
     # what need the chart's 1500Mi limit.
     load-generator:
