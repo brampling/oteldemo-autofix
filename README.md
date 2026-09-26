@@ -1,12 +1,9 @@
 # oteldemo-autofix
 
-Dash0 spots a production error in the OpenTelemetry demo, and Agent0 opens the
-pull request that fixes it. Merging the PR ships the fix through CI/CD to the
-cluster, and the error clears in Dash0.
-
-The app is a fork of the [OpenTelemetry demo](https://github.com/open-telemetry/opentelemetry-demo)
-(Astronomy Shop) 3.1.0, running on a single-node k3d cluster and deployed by
-Argo CD from this repo.
+A fork of the [OpenTelemetry demo](https://github.com/open-telemetry/opentelemetry-demo)
+(Astronomy Shop) 3.1.0, running on a single-node k3d cluster. Argo CD deploys
+it from this repo, GitHub Actions builds and ships code changes, and all of its
+telemetry goes to Dash0.
 
 ## How it fits together
 
@@ -25,24 +22,11 @@ flowchart LR
     end
     demo -->|app traces, metrics, logs| dash0[Dash0]
     op -->|k8s metrics + events| dash0
-    dash0 -->|Agent0 diagnoses, opens fix PR| repo
 ```
 
 Services built from this repo's source (currently `product-catalog`) run images
 from GHCR. Every other service runs the upstream image
 `ghcr.io/open-telemetry/demo:3.1.0-<service>`.
-
-## Demo status
-
-| Stage | State |
-|---|---|
-| Demo running in the cluster, with CI/CD from GitHub | done |
-| Telemetry to Dash0 | done |
-| A product-catalog failure for Agent0 to diagnose | done |
-| Agent0 diagnoses and opens a fix PR | next |
-| Merge the fix, error clears in Dash0 | planned |
-| Script to re-break the service for the next run | planned |
-| Dash0 automation opens the fix PR on its own | planned |
 
 ## CI/CD
 
@@ -50,7 +34,7 @@ from GHCR. Every other service runs the upstream image
 `src/product-catalog/`:
 
 1. **Pull request:** gofmt, `go vet`, build and `go test` run as a check, so a
-   fix PR shows green or red before anyone merges it.
+   PR shows green or red before anyone merges it.
 2. **Merge to `main`:** the same tests run, then a native arm64 runner builds
    the image and pushes
    `ghcr.io/brampling/oteldemo-autofix-product-catalog:sha-<commit>`.
