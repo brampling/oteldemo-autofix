@@ -38,8 +38,8 @@ from GHCR. Every other service runs the upstream image
 |---|---|
 | Demo running in the cluster, with CI/CD from GitHub | done |
 | Telemetry to Dash0 | done |
-| Diagnose the product-catalog failure | next |
-| Agent0 diagnoses and opens a fix PR | planned |
+| A product-catalog failure for Agent0 to diagnose | done |
+| Agent0 diagnoses and opens a fix PR | next |
 | Merge the fix, error clears in Dash0 | planned |
 | Script to re-break the service for the next run | planned |
 | Dash0 automation opens the fix PR on its own | planned |
