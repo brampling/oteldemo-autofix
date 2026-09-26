@@ -355,6 +355,20 @@ func parseProductRow(id, name, description, picture, currencyCode, categoriesStr
 	}
 }
 
+// validatePrice checks that a catalog price is well-formed and positive.
+func validatePrice(price *pb.Money) error {
+	if price == nil {
+		return fmt.Errorf("price is missing")
+	}
+	if price.GetNanos() < 0 || price.GetNanos() > 999_999_999 {
+		return fmt.Errorf("price nanos out of range: %d", price.GetNanos())
+	}
+	if price.GetUnits() <= 0 {
+		return fmt.Errorf("price must be greater than zero, got %d %s", price.GetUnits(), price.GetCurrencyCode())
+	}
+	return nil
+}
+
 func mustMapEnv(target *string, key string) {
 	value, present := os.LookupEnv(key)
 	if !present {
@@ -406,6 +420,20 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 		span.SetStatus(otelcodes.Error, msg)
 		span.AddEvent(msg)
 		return nil, status.Error(codes.NotFound, msg)
+	}
+
+	// Checkout prices orders from GetProduct, so a catalog row with a zero or
+	// negative price would go through as a free order. Refuse to serve it.
+	if err := validatePrice(found.GetPriceUsd()); err != nil {
+		msg := fmt.Sprintf("Invalid price for product %s: %v", req.Id, err)
+		span.SetStatus(otelcodes.Error, msg)
+		span.AddEvent(msg)
+		logger.LogAttrs(
+			ctx,
+			slog.LevelError, msg,
+			slog.String("demo.product.id", req.Id),
+		)
+		return nil, status.Error(codes.Internal, msg)
 	}
 
 	span.AddEvent("Product Found")
